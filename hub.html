@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>MicroDSI · Hub BPMN Avanzado</title>
+  <link rel="stylesheet" href="assets/styles.css"/>
+  <style>
+    /* CSS Adicional para el layout elaborado */
+    .grid3 { display: grid; grid-template-columns: 280px 1fr 320px; gap: 20px; margin-top: 20px; }
+    @media(max-width: 1100px) { .grid3 { grid-template-columns: 1fr; } }
+    .task-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+    .task-row input, .task-row select { padding: 8px; flex: 1; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.02); color: var(--text); }
+    .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+    #mdPreview { font-family: monospace; font-size: 12px; white-space: pre-wrap; background: #0b0f14; padding: 15px; border-radius: 12px; height: 100%; border: 1px solid var(--line); color: var(--accent); }
+    .sticky-col { position: sticky; top: 80px; height: calc(100vh - 100px); overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="row">
+      <div class="brand">
+        <b>MicroDSI</b>
+        <span>Hub Avanzado · M2-S11 BPMN</span>
+      </div>
+      <nav class="nav">
+        <a class="btn" href="index.html">Volver al Inicio</a>
+        <button class="btn primary" id="btnDownload">⬇️ Exportar Entregable</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 1400px;">
+    
+    <section class="panel kpi" style="margin-bottom: 20px;">
+      <div class="box"><b>Fase Actual</b><span style="color: var(--accent);">Mapeo AS-IS</span></div>
+      <div class="box"><b>Límite de Tareas</b><span id="taskCount">0 / 15 pasos recomendados</span></div>
+      <div class="box"><b>Regla de Oro</b><span>Cada tarea = Verbo + Objeto explícito</span></div>
+    </section>
+
+    <div class="grid3">
+      
+      <aside class="sticky-col">
+        <div class="panel">
+          <h3>1. Setup del Modelo</h3>
+          <p style="font-size: 13px; margin-bottom: 15px;">Define las fronteras antes de dibujar. El proceso no puede ser infinito.</p>
+          
+          <label>Proceso Seleccionado (L1)</label>
+          <input type="text" id="procName" placeholder="Ej: Gestionar incidencias" onkeyup="updateMD()" style="width: 100%; margin-bottom: 15px;">
+          
+          <label>Roles Implicados (Swimlanes)</label>
+          <textarea id="roles" placeholder="Usuario, Agente N1, Sistema ERP..." onkeyup="updateMD()" style="min-height: 60px;"></textarea>
+          
+          <hr class="sep">
+          
+          <h3>Restricciones</h3>
+          <div style="font-size: 12px; color: var(--muted);">
+            <label><input type="checkbox" id="chkPII" onchange="updateMD()"> ¿Maneja datos PII sensibles?</label><br><br>
+            <label><input type="checkbox" id="chkAudit" onchange="updateMD()"> ¿Requiere traza de auditoría?</label>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel">
+        <h3>2. Lienzo de Tareas (AS-IS)</h3>
+        <p style="font-size: 13px; margin-bottom: 20px;">Añade los pasos secuenciales. Identifica compuertas (decisiones) y marca los cuellos de botella actuales.</p>
+        
+        <div id="taskContainer">
+          </div>
+
+        <button class="btn" onclick="addTask()" style="margin-top: 10px;">+ Añadir Nuevo Paso</button>
+      </section>
+
+      <aside class="sticky-col">
+        <div class="panel" style="height: 100%; display: flex; flex-direction: column;">
+          <h3>3. Código Generado</h3>
+          <p style="font-size: 13px; margin-bottom: 10px;">Listo para copiar a tu documentación o descargar.</p>
+          <div id="mdPreview">Cargando previsualización...</div>
+        </div>
+      </aside>
+
+    </div>
+  </main>
+
+  <script>
+    let taskIndex = 0;
+
+    // Añade una fila dinámica de tarea
+    function addTask() {
+      taskIndex++;
+      const container = document.getElementById('taskContainer');
+      const row = document.createElement('div');
+      row.className = 'task-row';
+      row.id = `task-${taskIndex}`;
+      
+      row.innerHTML = `
+        <span style="color: var(--muted); font-size: 12px; width: 20px;">${taskIndex}.</span>
+        <select class="task-type" onchange="updateMD()" style="max-width: 100px;">
+          <option value="Tarea">Tarea</option>
+          <option value="Compuerta">Compuerta</option>
+          <option value="Evento">Evento</option>
+        </select>
+        <input type="text" class="task-desc" placeholder="Ej: Validar documentación..." onkeyup="updateMD()">
+        <button class="btn btn-sm" style="border-color: var(--danger); color: var(--danger);" onclick="removeTask('${row.id}')">X</button>
+      `;
+      container.appendChild(row);
+      updateMD();
+    }
+
+    // Elimina una fila
+    function removeTask(id) {
+      document.getElementById(id).remove();
+      updateMD();
+    }
+
+    // Genera el Markdown en tiempo real
+    function updateMD() {
+      const procName = document.getElementById('procName').value || '[Nombre del Proceso]';
+      const roles = document.getElementById('roles').value || '[Roles no definidos]';
+      const pii = document.getElementById('chkPII').checked ? "Sí" : "No";
+      const audit = document.getElementById('chkAudit').checked ? "Sí" : "No";
+      
+      const rows = document.querySelectorAll('.task-row');
+      document.getElementById('taskCount').innerText = `${rows.length} / 15 pasos recomendados`;
+
+      let md = `# Especificación BPMN: ${procName}\n\n`;
+      md += `## 1. Contexto y Fronteras\n`;
+      md += `- **Swimlanes (Roles):** ${roles}\n`;
+      md += `- **Datos PII:** ${pii}\n`;
+      md += `- **Auditoría Requerida:** ${audit}\n\n`;
+      
+      md += `## 2. Flujo AS-IS\n`;
+      if (rows.length === 0) {
+        md += `_No se han añadido pasos aún._\n`;
+      } else {
+        rows.forEach((row, index) => {
+          const type = row.querySelector('.task-type').value;
+          const desc = row.querySelector('.task-desc').value || '...';
+          md += `${index + 1}. **[${type}]** ${desc}\n`;
+        });
+      }
+
+      document.getElementById('mdPreview').innerText = md;
+    }
+
+    // Descarga el archivo MD
+    document.getElementById('btnDownload').addEventListener('click', () => {
+      const text = document.getElementById('mdPreview').innerText;
+      const blob = new Blob([text], { type: 'text/markdown' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'modelo_bpmn.md';
+      a.click();
+    });
+
+    // Inicializar con una tarea por defecto
+    window.onload = () => { addTask(); updateMD(); };
+  </script>
+</body>
+</html>
